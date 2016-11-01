@@ -16,7 +16,10 @@ import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.video.BackgroundSubtractor;
+import org.opencv.video.BackgroundSubtractorMOG2;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,6 +52,11 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
     }
 
     JavaCameraView javaCameraView;
+    private Mat frame;
+    private Mat h; // hierarquia findContours
+    private List<MatOfPoint> contornos;
+    private Scalar lowerBound;
+    private Scalar upperBound;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,7 +74,7 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
             javaCameraView.enableFpsMeter();
             height = javaCameraView.getHeight();
             width = javaCameraView.getWidth();
-            javaCameraView.setMaxFrameSize(800,600);
+            javaCameraView.setMaxFrameSize(960,480);
         }
     }
 
@@ -80,11 +88,14 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
 
     @Override
     public void onCameraViewStarted(int width, int height) {
-
+        lowerBound = new Scalar(3);
+        upperBound = new Scalar(3);
     }
 
     @Override
     public void onCameraViewStopped() {
+        frame.release();
+
         if (javaCameraView.isEnabled()) {
             javaCameraView.disableView();
         }
@@ -98,27 +109,33 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         Imgproc.resize(mRgbaT, mRgbaT, mRgba.size());
         //return mRgbaT;
         */
-
         return paulsMethodForImageTransformation(inputFrame.rgba());
     }
 
-    public Mat paulsMethodForImageTransformation(Mat mat) {
-        Mat gray = new Mat();
-        Imgproc.cvtColor(mat, gray, Imgproc.COLOR_RGBA2GRAY);
+    public Mat paulsMethodForImageTransformation(Mat inputFrame) {
+        frame = inputFrame.clone();
+        Imgproc.GaussianBlur(frame, frame, new Size(9, 9), 5);
+        Imgproc.cvtColor(frame, frame, Imgproc.COLOR_RGBA2GRAY);
+        Imgproc.threshold(frame, frame, 0, 255, Imgproc.THRESH_BINARY_INV + Imgproc.THRESH_OTSU);
+        //Imgproc.adaptiveThreshold(frame, frame, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY_INV, 7, 7);
+        //Core.inRange(frame, lowerBound, upperBound, frame);
+
+        contornos = new ArrayList<>();
+        h = new Mat();
+        Imgproc.findContours(frame, contornos, h, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
+
+        Rect roi;
+        for (int i = 0; i < contornos.size(); i++) {
+            //roi = Imgproc.boundingRect(contornos.get(i));
+            //Imgproc.rectangle(inputFrame, new Point(roi.x, roi.y), new Point(roi.x+roi.width, roi.y+roi.height), new Scalar(255,0,0,255), 1, 8, 0);
+            Imgproc.drawContours(inputFrame, contornos, i, new Scalar(0, 0, 255), 5);
+        }
+        return inputFrame;
+
+
         //edges = new Mat(height,width,CvType.CV_8UC1);
         //lines = new Mat(height,width,mat.type());
-        Imgproc.Canny(gray, gray, limiarInferior,limiarSuperior);
-        //Imgproc.CV
-        return gray;
-        /*List<MatOfPoint> contornos = new ArrayList<MatOfPoint>();
-        Mat h = new Mat();
-
-        Imgproc.findContours(gray, contornos, h, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
-        for (int i = 0; i < contornos.size(); i++) {
-            Imgproc.drawContours(mat, contornos, i, new Scalar(0, 0, 255), -1);
-        }
-
-        return mat;*/
+        //Imgproc.Canny(gray, gray, limiarInferior,limiarSuperior);
 
         /*Imgproc.HoughLinesP(
                 gray,
